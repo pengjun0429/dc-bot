@@ -1,3 +1,12 @@
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,    // 必須開啟
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent   // 必須開啟
+  ]
+});
+
 const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, PermissionFlagsBits } = require('discord.js');
 const http = require('http');
 const url = require('url');

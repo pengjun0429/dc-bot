@@ -1,6 +1,16 @@
 const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, PermissionFlagsBits } = require('discord.js');
 const http = require('http');
-require('dotenv').config();
+
+// 必須優先讀取 process.env.PORT
+const port = process.env.PORT || 3000; 
+
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.write("Bot is alive!");
+  res.end();
+}).listen(port, '0.0.0.0', () => {
+  console.log(`伺服器正運作在埠號： ${port}`);
+});
 
 // --- 1. 防止 Render 休眠的 Web Server ---
 http.createServer((req, res) => {

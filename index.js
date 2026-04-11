@@ -1,141 +1,159 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, PermissionFlagsBits } = require('discord.js');
 const http = require('http');
 const url = require('url');
 require('dotenv').config();
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds, 
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages
-  ]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-// --- 控制面板 HTML ---
+// --- 1. 管理導向指令集 ---
+const commands = [
+  new SlashCommandBuilder().setName('clear').setDescription('清理頻道訊息').addIntegerOption(o => o.setName('amount').setDescription('刪除數量(1-100)').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+  new SlashCommandBuilder().setName('user_info').setDescription('獲取成員詳細管理資訊').addUserOption(o => o.setName('target').setDescription('目標成員')),
+  new SlashCommandBuilder().setName('server_report').setDescription('生成伺服器數據報告')
+].map(c => c.toJSON());
+
+// --- 2. 機器人事件 ---
+client.on('ready', async () => {
+  const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+  await rest.put(Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID), { body: commands });
+  console.log(`[系統通知] 專業管理機器人已上線`);
+});
+
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  const { commandName, options, guild } = interaction;
+
+  if (commandName === 'clear') {
+    const amount = options.getInteger('amount');
+    await interaction.channel.bulkDelete(amount, true);
+    await interaction.reply({ content: `✅ 已清理 ${amount} 則訊息。`, ephemeral: true });
+  }
+
+  if (commandName === 'user_info') {
+    const user = options.getUser('target') || interaction.user;
+    const member = guild.members.cache.get(user.id);
+    const roles = member.roles.cache.filter(r => r.name !== '@everyone').map(r => r.name).join(', ') || '無身分組';
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`📋 成員檔案：${user.tag}`)
+      .setColor(0x2B2D31)
+      .setThumbnail(user.displayAvatarURL())
+      .addFields(
+        { name: '使用者 ID', value: \`\`\`\${user.id}\`\`\`, inline: false },
+        { name: '加入時間', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:F>`, inline: false },
+        { name: '持有身分組', value: roles }
+      );
+    await interaction.reply({ embeds: [embed] });
+  }
+
+  if (commandName === 'server_report') {
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 ${guild.name} 數據報告`)
+      .setColor(0x5865F2)
+      .addFields(
+        { name: '成員總數', value: `${guild.memberCount}`, inline: true },
+        { name: '身分組數', value: `${guild.roles.cache.size}`, inline: true },
+        { name: '建立於', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:d>`, inline: true }
+      );
+    await interaction.reply({ embeds: [embed] });
+  }
+});
+
+// --- 3. 網頁後台 (移除所有遊戲元素) ---
 const dashboardHTML = `
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Polaris 高級控制面板</title>
+    <meta charset="UTF-8"><title>管理終端</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-4 flex flex-col items-center">
-    <div class="max-w-4xl w-full space-y-6">
-        <h1 class="text-3xl font-black text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-            POLARIS ADMIN DASHBOARD
-        </h1>
+<body class="bg-slate-950 text-slate-200 p-8 font-mono">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <div class="flex justify-between items-end border-b border-slate-800 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold tracking-widest text-white">ADMIN TERMINAL</h1>
+                <p class="text-xs text-slate-500">System Version 2.4.0_Stable</p>
+            </div>
+            <div id="ping" class="text-green-500 text-sm">-- MS</div>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
-                <h2 class="text-xl font-bold mb-4 text-blue-400">📢 快速發佈公告</h2>
-                <p class="text-sm text-slate-400 mb-2">選擇目標頻道：</p>
-                <select id="channelSelect" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 mb-4 outline-none">
-                    <option value="">載入頻道中...</option>
-                </select>
-                <textarea id="bcMsg" rows="3" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 outline-none" placeholder="輸入公告內容..."></textarea>
-                <button onclick="sendBroadcast()" class="w-full mt-3 bg-blue-600 hover:bg-blue-500 p-2 rounded-lg font-bold transition">發送公告</button>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-lg">
+                <h3 class="text-slate-400 text-xs mb-4 uppercase">Broadcast Interface</h3>
+                <select id="ch" class="w-full bg-slate-950 border border-slate-700 p-2 rounded mb-4"></select>
+                <textarea id="msg" rows="5" class="w-full bg-slate-950 border border-slate-700 p-4 rounded text-sm" placeholder="輸入公告內容..."></textarea>
+                <button onclick="send()" class="w-full mt-4 bg-slate-200 text-black py-2 rounded font-bold hover:bg-white transition">執行廣播</button>
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
-                <h2 class="text-xl font-bold mb-4 text-red-400">🚫 成員封鎖系統</h2>
-                <p class="text-sm text-slate-400 mb-2">輸入成員名稱 (需完全符合或包含)：</p>
-                <input id="userName" type="text" list="memberList" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 mb-2 outline-none" placeholder="例如: 使用者#1234">
-                <datalist id="memberList"></datalist>
-                
-                <p class="text-sm text-slate-400 mb-2">封鎖原因：</p>
-                <input id="banReason" type="text" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 mb-4 outline-none" placeholder="違規原因...">
-                <button onclick="execBan()" class="w-full bg-red-600 hover:bg-red-500 p-2 rounded-lg font-bold transition">執行封鎖</button>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-lg">
+                <h3 class="text-slate-400 text-xs mb-4 uppercase">Member Management</h3>
+                <div id="list" class="space-y-2 h-[350px] overflow-y-auto pr-2">載入中...</div>
             </div>
         </div>
     </div>
-
     <script>
-        // 初始載入資料
-        async function loadData() {
-            const data = await fetch('/api/init-data').then(r => r.json());
-            
-            // 填充頻道下拉選單
-            const cSelect = document.getElementById('channelSelect');
-            cSelect.innerHTML = data.channels.map(c => \`<option value="\${c.id}"># \${c.name}</option>\`).join('');
-
-            // 填充成員自動完成清單
-            const mList = document.getElementById('memberList');
-            mList.innerHTML = data.members.map(m => \`<option value="\${m.tag}">\`).join('');
+        async function load() {
+            const d = await fetch('/api/data').then(r => r.json());
+            document.getElementById('ping').innerText = d.ping + ' MS';
+            document.getElementById('ch').innerHTML = d.channels.map(c => \`<option value="\${c.id}"># \${c.name}</option>\`).join('');
+            document.getElementById('list').innerHTML = d.members.map(m => \`
+                <div class="flex justify-between items-center bg-slate-950 p-3 border border-slate-800 rounded">
+                    <span class="text-xs truncate">\${m.tag}</span>
+                    <button onclick="ban('\${m.id}')" class="text-[10px] border border-red-900 text-red-500 px-2 py-1 hover:bg-red-950 transition">BAN</button>
+                </div>
+            \`).join('');
         }
-        loadData();
+        setInterval(load, 15000); load();
 
-        async function sendBroadcast() {
-            const channelId = document.getElementById('channelSelect').value;
-            const content = document.getElementById('bcMsg').value;
-            if(!content) return alert('內容不能為空');
-            const res = await fetch(\`/api/broadcast?content=\${encodeURIComponent(content)}&channelId=\${channelId}\`).then(r => r.text());
-            if(res === 'ok') { alert('公告已發出'); document.getElementById('bcMsg').value = ''; }
+        async function send() {
+            const ch = document.getElementById('ch').value;
+            const msg = document.getElementById('msg').value;
+            if(!msg) return;
+            await fetch(\`/api/broadcast?ch=\${ch}&msg=\${encodeURIComponent(msg)}\`);
+            alert('系統公告已發佈');
+            document.getElementById('msg').value = '';
         }
-
-        async function execBan() {
-            const name = document.getElementById('userName').value;
-            const reason = document.getElementById('banReason').value;
-            if(!name) return alert('請輸入名字');
-            const res = await fetch(\`/api/ban?name=\${encodeURIComponent(name)}&reason=\${encodeURIComponent(reason)}\`).then(r => r.text());
-            alert(res === 'banned' ? '已成功封鎖該成員' : '找不到該成員或權限不足');
+        async function ban(id) {
+            if(!confirm('確認執行封鎖指令？')) return;
+            await fetch(\`/api/ban?id=\${id}\`);
+            load();
         }
     </script>
 </body>
 </html>
 `;
 
-// --- 後端邏輯 ---
+// --- 4. 後端 API ---
 http.createServer(async (req, res) => {
-    const reqUrl = url.parse(req.url, true);
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  const reqUrl = url.parse(req.url, true);
+  const guild = client.guilds.cache.get(process.env.GUILD_ID);
 
-    if (reqUrl.pathname === '/') {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(dashboardHTML);
-    }
+  if (reqUrl.pathname === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(dashboardHTML);
+  }
 
-    // 新增：獲取初始資料 API (頻道與成員)
-    if (reqUrl.pathname === '/api/init-data') {
-        if (!guild) return res.end('{}');
-        
-        // 只抓取文字頻道
-        const channels = guild.channels.cache
-            .filter(c => c.type === 0)
-            .map(c => ({ id: c.id, name: c.name }));
+  if (reqUrl.pathname === '/api/data') {
+    const channels = guild.channels.cache.filter(c => c.type === 0).map(c => ({ id: c.id, name: c.name }));
+    const members = guild.members.cache.map(m => ({ tag: m.user.tag, id: m.user.id }));
+    res.end(JSON.stringify({ ping: client.ws.ping, channels, members }));
+  }
 
-        // 抓取快取中的成員 (Tag 名稱)
-        const members = guild.members.cache.map(m => ({ tag: m.user.tag }));
+  if (reqUrl.pathname === '/api/broadcast') {
+    const { ch, msg } = reqUrl.query;
+    const channel = await client.channels.fetch(ch);
+    const embed = new EmbedBuilder().setTitle('📢 系統公告').setDescription(msg).setColor(0x2B2D31).setTimestamp();
+    await channel.send({ embeds: [embed] });
+    res.end('ok');
+  }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ channels, members }));
-    }
-
-    if (reqUrl.pathname === '/api/broadcast') {
-        const { content, channelId } = reqUrl.query;
-        try {
-            const channel = await client.channels.fetch(channelId);
-            const embed = new EmbedBuilder().setTitle('📢 管理公告').setDescription(content).setColor(0x3B82F6).setTimestamp();
-            await channel.send({ embeds: [embed] });
-            res.end('ok');
-        } catch (e) { res.end('error'); }
-    }
-
-    if (reqUrl.pathname === '/api/ban') {
-        const { name, reason } = reqUrl.query;
-        try {
-            // 透過名稱搜尋成員
-            const member = guild.members.cache.find(m => m.user.tag === name);
-            if (member) {
-                await member.ban({ reason: reason || '面板封鎖' });
-                res.end('banned');
-            } else {
-                res.end('notfound');
-            }
-        } catch (e) { res.end('error'); }
-    }
-
+  if (reqUrl.pathname === '/api/ban') {
+    const id = reqUrl.query.id;
+    await guild.members.ban(id, { reason: '管理終端遠端執行' });
+    res.end('ok');
+  }
 }).listen(process.env.PORT || 3000);
 
 client.login(process.env.TOKEN);

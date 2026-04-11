@@ -74,8 +74,6 @@ client.on('interactionCreate', async (interaction) => {
         .setTitle('🛰️ 邀請連結實時報告')
         .setDescription(list)
         .setColor(0x5865F2)
-        .setThumbnail(guild.iconURL())
-        .setImage('https://i.imgur.com/8N4X98z.png') // 這裡建議放一張與 Rich Presence 一樣的橫幅
         .setFooter({ text: `監管員：使用者` })
         .setTimestamp();
         

@@ -3,44 +3,44 @@ const http = require('http');
 const url = require('url');
 require('dotenv').config();
 
+// 核心初始化：確保所有必要的 Intent 都已開啟
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildPresences
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildInvites
   ]
 });
 
-// 1. 指令定義：改為全域架構
+// 1. 全域指令清單
 const commands = [
-  new SlashCommandBuilder().setName('clear').setDescription('清理大量訊息').addIntegerOption(o => o.setName('amount').setDescription('數量').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
-  new SlashCommandBuilder().setName('clean_user').setDescription('清除特定成員近期訊息').addUserOption(o => o.setName('target').setDescription('對象').setRequired(true)).addIntegerOption(o => o.setName('amount').setDescription('掃描數量')).setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
-  new SlashCommandBuilder().setName('warn').setDescription('正式警告成員').addUserOption(o => o.setName('target').setDescription('對象').setRequired(true)).addStringOption(o => o.setName('reason').setDescription('原因')).setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
-  new SlashCommandBuilder().setName('kick').setDescription('踢出成員').addUserOption(o => o.setName('target').setDescription('對象').setRequired(true)).addStringOption(o => o.setName('reason').setDescription('原因')).setDefaultMemberPermissions(PermissionFlagsBits.KickMembers),
-  new SlashCommandBuilder().setName('ban').setDescription('封鎖成員').addUserOption(o => o.setName('target').setDescription('目標').setRequired(true)).addStringOption(o => o.setName('reason').setDescription('原因')).setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
-  new SlashCommandBuilder().setName('timeout').setDescription('停權(禁言)成員').addUserOption(o => o.setName('target').setDescription('對象').setRequired(true)).addIntegerOption(o => o.setName('minutes').setDescription('分鐘').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
-  new SlashCommandBuilder().setName('lockdown').setDescription('全伺服器緊急封鎖/解鎖').setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
-  new SlashCommandBuilder().setName('check_invite').setDescription('查詢伺服器邀請連結報告'),
-  new SlashCommandBuilder().setName('server_report').setDescription('生成伺服器深度數據報告'),
-  new SlashCommandBuilder().setName('get_avatar').setDescription('獲取成員高畫質頭像').addUserOption(o => o.setName('target').setDescription('對象'))
+  new SlashCommandBuilder().setName('clear').setDescription('批量清理訊息').addIntegerOption(o => o.setName('amount').setDescription('清理數量(1-100)').setRequired(true)).setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+  new SlashCommandBuilder().setName('warn').setDescription('發送正式警告').addUserOption(o => o.setName('target').setDescription('目標').setRequired(true)).addStringOption(o => o.setName('reason').setDescription('原因')),
+  new SlashCommandBuilder().setName('timeout').setDescription('停權(禁言)成員').addUserOption(o => o.setName('target').setDescription('目標').setRequired(true)).addIntegerOption(o => o.setName('minutes').setDescription('時間(分鐘)').setRequired(true)),
+  new SlashCommandBuilder().setName('ban').setDescription('封鎖成員').addUserOption(o => o.setName('target').setDescription('目標').setRequired(true)).addStringOption(o => o.setName('reason').setDescription('原因')),
+  new SlashCommandBuilder().setName('lockdown').setDescription('切換全伺服器鎖定狀態').setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+  new SlashCommandBuilder().setName('check_invite').setDescription('查看當前伺服器邀請碼數據'),
+  new SlashCommandBuilder().setName('server_report').setDescription('生成伺服器深度分析報告'),
+  new SlashCommandBuilder().setName('get_avatar').setDescription('獲取成員頭像').addUserOption(o => o.setName('target').setDescription('對象'))
 ].map(c => c.toJSON());
 
-// --- Rich Presence 視覺核心 (保留使用者要求的視覺門面) ---
-const updateRichPresence = () => {
-  const totalGuilds = client.guilds.cache.size;
+// --- Rich Presence 視覺設置 (對應使用者提供的封面圖片) ---
+const updatePresence = () => {
+  const serverCount = client.guilds.cache.size;
   client.user.setPresence({
     activities: [{
-      name: `監控 ${totalGuilds} 個伺服器`,
+      name: `管理 ${serverCount} 個伺服器`,
       type: ActivityType.Watching,
-      details: "🛡️ 旗艦管理系統 v20.0",
+      details: "🛡️ 旗艦監控系統 v21.0",
       state: "管理員：使用者",
       assets: {
-        largeImage: "main_banner", // 請在 Dev Portal 上傳對應金鑰的圖片
+        largeImage: "main_banner", // 需在 Dev Portal 上傳對應 Key
         largeText: "Polaris Global System",
         smallImage: "verified_icon",
-        smallText: "安全認證"
+        smallText: "核心已授權"
       }
     }],
     status: 'dnd'
@@ -50,76 +50,87 @@ const updateRichPresence = () => {
 client.on('ready', async () => {
   const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
   try {
-    // 【核心改動】改為全域註冊，移除 Guild ID 限制
+    // 全域發布指令 (移除 Guild ID，讓所有伺服器共用)
     await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-    console.log(`>>> v20.0 全域核心已就緒 | 指令已發布`);
-    updateRichPresence();
-    setInterval(updateRichPresence, 600000);
+    console.log(`>>> v21.0 全域穩定版已就緒`);
+    updatePresence();
+    setInterval(updatePresence, 600000); 
   } catch (err) { console.error(err); }
 });
 
-// 2. 多伺服器適應邏輯
+// 2. 指令核心邏輯 (多伺服器相容模式)
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-  const { commandName, options, guild, channel } = interaction;
-  if (!guild) return interaction.reply("此指令僅限伺服器內使用");
+
+  const { commandName, options, guild, channel, member } = interaction;
+
+  // 修正：確保在其他伺服器中能正確抓到 guild 物件
+  if (!guild) {
+    return interaction.reply({ content: "❌ 為了安全起見，管理指令僅限在伺服器頻道內使用。", ephemeral: true });
+  }
 
   try {
-    // 視覺化邀請碼報告
+    // 邀請碼視覺報告 (動態適應當前伺服器)
     if (commandName === 'check_invite') {
       const invites = await guild.invites.fetch();
-      const list = invites.map(i => `🎫 \`${i.code}\` | ${i.inviter.tag} | 用量: **${i.uses}**`).join('\n') || '無數據';
+      const list = invites.map(i => `🎫 \`${i.code}\` | 來自: ${i.inviter ? i.inviter.tag : '未知'} | 次數: **${i.uses}**`).join('\n') || '無邀請碼紀錄';
       const embed = new EmbedBuilder()
         .setAuthor({ name: guild.name, iconURL: guild.iconURL() })
-        .setTitle('🛰️ 邀請連結實時監控')
+        .setTitle('🛰️ 伺服器流量監控')
         .setDescription(list)
         .setColor(0x5865F2)
-        .setImage('https://i.imgur.com/8N4X98z.png') // 邀請報告橫幅
-        .setFooter({ text: `由 使用者 指導開發` });
+        .setFooter({ text: `操作者：${interaction.user.tag}` })
+        .setTimestamp();
       await interaction.reply({ embeds: [embed] });
     }
 
-    // 全服封鎖邏輯 (動態適應當前伺服器)
+    // 全服 Lockdown (動態權限覆蓋)
     if (commandName === 'lockdown') {
       const everyone = guild.roles.everyone;
       const textChannels = guild.channels.cache.filter(c => c.type === 0);
-      const isLocked = textChannels.first().permissionsFor(everyone).has(PermissionFlagsBits.SendMessages);
-      for (const [id, ch] of textChannels) await ch.permissionOverwrites.edit(everyone, { SendMessages: !isLocked });
-      await interaction.reply(isLocked ? "🚨 **伺服器已進入封鎖模式**" : "✅ **伺服器已解除封鎖**");
+      const firstChannel = textChannels.first();
+      const isCurrentlyLocked = !firstChannel.permissionsFor(everyone).has(PermissionFlagsBits.SendMessages);
+      
+      for (const [id, ch] of textChannels) {
+        await ch.permissionOverwrites.edit(everyone, { SendMessages: isCurrentlyLocked });
+      }
+      await interaction.reply(isCurrentlyLocked ? "✅ **全伺服器已解除鎖定**" : "🚨 **全伺服器已進入封鎖模式**");
     }
 
-    // 批量清理特定成員訊息
-    if (commandName === 'clean_user') {
-      const target = options.getUser('target');
-      const amount = options.getInteger('amount') || 100;
-      const msgs = await channel.messages.fetch({ limit: amount });
-      const targetMsgs = msgs.filter(m => m.author.id === target.id);
-      await channel.bulkDelete(targetMsgs, true);
-      await interaction.reply({ content: `✅ 已清理 ${target.tag} 的 ${targetMsgs.size} 則訊息`, ephemeral: true });
+    // 停權功能
+    if (commandName === 'timeout') {
+      const target = options.getMember('target');
+      const min = options.getInteger('minutes');
+      if (target.roles.highest.position >= member.roles.highest.position) return interaction.reply("❌ 你的權限不足以對該成員執行此操作。");
+      await target.timeout(min * 60 * 1000);
+      await interaction.reply(`🔇 已將 **${target.user.tag}** 禁言 ${min} 分鐘。`);
     }
 
-    // (其餘 Ban, Timeout, Warn 指令皆使用動態 guild 物件，確保全域通用)
-  } catch (e) { 
+    // 批量清理訊息
+    if (commandName === 'clear') {
+      const amt = options.getInteger('amount');
+      await channel.bulkDelete(amt, true);
+      await interaction.reply({ content: `✅ 已成功清理 ${amt} 則訊息。`, ephemeral: true });
+    }
+
+  } catch (e) {
     console.error(e);
-    if (!interaction.replied) await interaction.reply({ content: '❌ 執行失敗，請檢查機器人權限階級', ephemeral: true });
+    if (!interaction.replied) await interaction.reply({ content: '❌ 執行出錯，請確認機器人擁有管理員權限。', ephemeral: true });
   }
 });
 
-// 3. 網頁端：極簡匿名看板 (維持使用者喜好的風格)
+// 3. 網頁端 (保持原本功能)
 const boardHTML = `
 <!DOCTYPE html>
 <html lang="zh-TW">
-<head>
-    <meta charset="UTF-8"><title>匿名看板 V20</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100">
-        <h2 class="text-center font-black text-gray-800 text-xl mb-6 tracking-widest uppercase">Global_Portal</h2>
+<head><meta charset="UTF-8"><title>匿名看板 V21</title><script src="https://cdn.tailwindcss.com"></script></head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200">
+        <h2 class="text-center font-black text-gray-800 text-xl mb-6 tracking-widest uppercase">Global_Control</h2>
         <div class="space-y-4">
-            <select id="ch" class="w-full p-3 bg-gray-50 border border-gray-100 rounded-lg outline-none text-sm"></select>
-            <textarea id="msg" maxlength="500" class="w-full h-40 p-4 bg-gray-50 border border-gray-100 rounded-lg outline-none text-sm resize-none" placeholder="說點什麼..."></textarea>
-            <button onclick="send()" id="btn" class="w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-200">發送匿名訊息</button>
+            <select id="ch" class="w-full p-3 bg-gray-50 border border-gray-100 rounded-lg text-sm outline-none"></select>
+            <textarea id="msg" maxlength="500" class="w-full h-40 p-4 bg-gray-50 border border-gray-100 rounded-lg text-sm outline-none resize-none" placeholder="輸入訊息..."></textarea>
+            <button onclick="send()" id="btn" class="w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all">發送匿名訊息</button>
         </div>
     </div>
     <script>
@@ -134,7 +145,7 @@ const boardHTML = `
             const btn=document.getElementById('btn'); btn.disabled=true;
             await fetch(\`/api/post?ch=\${ch}&msg=\${encodeURIComponent(msg)}\`);
             document.getElementById('msg').value=''; btn.disabled=false;
-            alert('傳送完成');
+            alert('OK');
         }
     </script>
 </body>
@@ -144,7 +155,6 @@ const boardHTML = `
 // 4. 後端 API
 http.createServer(async (req, res) => {
   const reqUrl = url.parse(req.url, true);
-  // 注意：網頁端目前仍鎖定在主要伺服器 (GUILD_ID)，若要全域網頁版需額外開發伺服器選單
   const guild = client.guilds.cache.get(process.env.GUILD_ID);
 
   if (reqUrl.pathname === '/') {
@@ -155,7 +165,7 @@ http.createServer(async (req, res) => {
   } else if (reqUrl.pathname === '/api/post') {
     const { ch, msg } = reqUrl.query;
     const target = await client.channels.fetch(ch);
-    const embed = new EmbedBuilder().setAuthor({name:'匿名系統'}).setDescription(msg).setColor(0x2F3136).setTimestamp();
+    const embed = new EmbedBuilder().setAuthor({name:'匿名系統'}).setDescription(msg).setColor(0x00FF41).setTimestamp();
     await target.send({ embeds: [embed] }); res.end('ok');
   }
 }).listen(process.env.PORT || 3000);

@@ -31,7 +31,7 @@ const updatePresence = () => {
   client.user.setPresence({
     activities: [{
       name: `監控 ${client.guilds.cache.size} 個伺服器`,
-      type: ActivityType.Watching,
+      type: ActivityType.Watching,最新邀請連結https://pengjun0429.github.io/dc-bot-information/
       details: "🛡️ 旗艦管理系統 v21.2",
       state: "管理員：使用者",
       assets: { largeImage: "main_banner", smallImage: "verified_icon" }

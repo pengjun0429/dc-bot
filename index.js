@@ -32,27 +32,21 @@ const commands = [
 
 // --- Rich Presence 視覺設置 (含介紹網站按鈕) ---
 
-  const updatePresence = () => {
+const updatePresence = () => {
   const serverCount = client.guilds.cache.size;
   
-  // 核心修復：使用 ActivityType.Playing 確保按鈕顯示
   client.user.setPresence({
     activities: [{
-      name: `Polaris v25.2`, // 主標題
-      type: ActivityType.Playing, 
-      details: `🛡️ 監控 ${serverCount} 個伺服器`,
-      state: "管理員：使用者",
-      // 確保網址格式完全正確
-      buttons: [
-        { 
-          label: "🌐 查看介紹網站", 
-          url: "https://pengjun0429.github.io/dc-bot-information/" 
-        },
-        { 
-          label: "📩 邀請機器人", 
-          url: `https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID}&permissions=8&scope=bot%20applications.commands` 
-        }
-      ],
+      // 將介紹網址直接寫在名稱中
+      name: `🌐 介紹網站: pengjun0429.github.io/dc-bot-information/`,
+      type: ActivityType.Streaming, 
+      url: "https://pengjun0429.github.io/dc-bot-information/", // 這裡填入介紹網站網址
+      details: `🛡️ Polaris v25.5 | 監控 ${serverCount} 伺服器`,
+      state: "管理員：使用者"
+    }],
+    status: 'online' // 直播模式建議使用 online (紫色圖示)
+  });
+};
       assets: {
         largeImage: "main_banner", 
         largeText: "Polaris System",

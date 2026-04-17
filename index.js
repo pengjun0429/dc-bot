@@ -31,21 +31,30 @@ const commands = [
 ].map(c => c.toJSON());
 
 // --- Rich Presence 視覺設置 (含介紹網站按鈕) ---
-const updatePresence = () => {
+
+  const updatePresence = () => {
   const serverCount = client.guilds.cache.size;
+  
+  // 核心修復：使用 ActivityType.Playing 確保按鈕顯示
   client.user.setPresence({
     activities: [{
-      name: `監控 ${serverCount} 個伺服器`,
-      type: ActivityType.Watching,
-      details: "🛡️ Polaris Global v25.0",
+      name: `Polaris v25.2`, // 主標題
+      type: ActivityType.Playing, 
+      details: `🛡️ 監控 ${serverCount} 個伺服器`,
       state: "管理員：使用者",
-      // 這裡放上介紹網站按鈕
+      // 確保網址格式完全正確
       buttons: [
-        { label: "🌐 查看介紹網站", url: "https://pengjun0429.github.io/dc-bot-information/" },
-        { label: "📩 邀請機器人", url: `https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID}&permissions=8&scope=bot%20applications.commands` }
+        { 
+          label: "🌐 查看介紹網站", 
+          url: "https://pengjun0429.github.io/dc-bot-information/" 
+        },
+        { 
+          label: "📩 邀請機器人", 
+          url: `https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID}&permissions=8&scope=bot%20applications.commands` 
+        }
       ],
       assets: {
-        largeImage: "main_banner",
+        largeImage: "main_banner", 
         largeText: "Polaris System",
         smallImage: "verified_icon",
         smallText: "核心已授權"
